@@ -38,6 +38,26 @@ func NewStorage() (*Storage, error) {
 	return &Storage{conn: conn}, nil
 }
 
+func (s *Storage) Migrate() error{
+	driver,err:=pgx.WithInstance(s.conn,&pgx.Config{})
+	if err!=nil{
+		return err
+	}
+
+	m,err:=migrate.NewWithDataBaseInstance("file://migrations","postgres",driver)
+	if err!=nil{
+		return err
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+	
+	fmt.Println("Миграции успешно применены!")
+	return nil
+
+}
+
 func (s *Storage) Close() {
 	s.conn.Close(context.Background())
 }
