@@ -1,20 +1,21 @@
 package storage
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/pgx"
-	_ "github.com/golang-migrate/migrate/v4/source/file" 
-	"github.com/jackc/pgx/v5"
+	"github.com/golang-migrate/migrate/v4/database/postgres" // Убрали нижнее подчеркивание!
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq"
+	
 	"github.com/joho/godotenv"
 )
 
 type Storage struct {
-	conn *pgx.Conn
+	db *sql.DB
 }
 
 func NewStorage() (*Storage, error) {
@@ -28,24 +29,34 @@ func NewStorage() (*Storage, error) {
 		return nil, fmt.Errorf("переменная DB_URL не найдена в .env")
 	}
 
-	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, dbURL)
+	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка подключения к БД: %w", err)
+		return nil, fmt.Errorf("ошибка открытия соединения: %w", err)
 	}
 
-	fmt.Println("Успешно подключение к PSQL")
-	return &Storage{conn: conn}, nil
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("база недоступна: %w", err)
+	}
+
+	fmt.Println("Успешно подключились к PostgreSQL!")
+	return &Storage{db: db}, nil
 }
 
-func (s *Storage) Migrate() error{
-	driver,err:=pgx.WithInstance(s.conn,&pgx.Config{})
-	if err!=nil{
+func (s *Storage) Migrate() error {
+	// 1. Создаем специальный драйвер для migrate на основе нашего соединения
+	driver, err := postgres.WithInstance(s.db, &postgres.Config{})
+	if err != nil {
 		return err
 	}
 
-	m,err:=migrate.NewWithDataBaseInstance("file://migrations","postgres",driver)
-	if err!=nil{
+	// 2. Передаем этот драйвер в migrate
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations", 
+		"postgres", 
+		driver,
+	)
+	if err != nil {
 		return err
 	}
 
@@ -55,9 +66,8 @@ func (s *Storage) Migrate() error{
 	
 	fmt.Println("Миграции успешно применены!")
 	return nil
-
 }
 
 func (s *Storage) Close() {
-	s.conn.Close(context.Background())
+	s.db.Close()
 }
