@@ -7,10 +7,10 @@ import (
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres" // Убрали нижнее подчеркивание!
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
-	
+
 	"github.com/joho/godotenv"
 )
 
@@ -52,8 +52,8 @@ func (s *Storage) Migrate() error {
 
 	// 2. Передаем этот драйвер в migrate
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations", 
-		"postgres", 
+		"file://migrations",
+		"postgres",
 		driver,
 	)
 	if err != nil {
@@ -63,11 +63,14 @@ func (s *Storage) Migrate() error {
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return err
 	}
-	
+
 	fmt.Println("Миграции успешно применены!")
 	return nil
 }
 
 func (s *Storage) Close() {
 	s.db.Close()
+}
+func (s *Storage) GetDB() *sql.DB {
+	return s.db
 }
