@@ -1,25 +1,44 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
+	"encoding/json"
 	"log"
+	"net/http"
 	"news_scroller/internal/storage"
-	_ "github.com/gorilla/mux"
+	"news_scroller/internal/user"
 
+	"github.com/gorilla/mux"
 )
 
 func main() {
-	//router := mux.NewRouter()
-	db,err:=storage.NewStorage()
-	if err!=nil{
+
+	db, err := storage.NewStorage()
+	if err != nil {
 		log.Fatalf("Ошибка в подключении к бд %v", err)
 	}
 	defer db.Close()
-	
-	if err:= db.Migrate();err!=nil{
+
+	if err := db.Migrate(); err != nil {
 		log.Fatalf("Ошибка в миграции %v", err)
 	}
-	fmt.Println("Server six seven")
-	http.ListenAndServe(":6767", nil)
+
+	userRepo := user.NewRepository(db.GetDB())
+
+	router := mux.NewRouter()
+
+	router.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		var params user.CreateUserParam
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			http.Error(w, "Неверный формат", http.StatusBadRequest)
+			return
+		}
+		if err := userRepo.Create(r.Context(), params); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+
+	}).Methods("POST")
+
+	log.Fatal(http.ListenAndServe(":6767", router))
 }
